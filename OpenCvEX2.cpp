@@ -1,6 +1,8 @@
 ﻿#include <stdio.h>
 #include <opencv2/opencv.hpp>
 
+//Ex3_1
+
 const char* INPUT_PATH = "../../../input.jpg";
 const char* OUTPUT_PATH = "../../../output.jpg";
 const char* WINDOW_NAME = "Adaptive Threshold";
