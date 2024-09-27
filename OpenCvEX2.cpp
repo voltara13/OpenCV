@@ -1,34 +1,51 @@
-﻿#include <stdio.h>
-#include <opencv2/opencv.hpp>
+﻿#include <opencv2/opencv.hpp>
+#include <vector>
 
 const char* INPUT_PATH = "../../../input.jpg";
-const char* OUTPUT_PATH = "../../../output.jpg";
-const char* WINDOW_NAME = "Adaptive Threshold";
+const char* WINDOW_SOURCE_NAME = "Source image";
+const char* WINDOW_OUTPUT_NAME = "Output image";
+const char* WINDOW_SOURCE_HIST_NAME = "Hist source";
+const char* WINDOW_OUTPUT_HIST_NAME = "Hist output";
 
-void onTrackbar(int, void*) {
+constexpr int HIST_SIZE = 256;
+constexpr int HIST_W = 512;
+constexpr int HIST_H = 400;
+
+constexpr float RANGE[] = { 0, HIST_SIZE };
+
+void printHist(const cv::Mat& iImage, const cv::Scalar& iColor, const cv::String& iWindowName)
+{
+  const float* histRange[] = { RANGE };
+
+  cv::Mat hist;
+  calcHist(&iImage, 1, 0, cv::Mat(), hist, 1, &HIST_SIZE, histRange, true, false);
+  int bin_w = cvRound((double)HIST_W / HIST_SIZE);
+  cv::Mat histImage(HIST_H, HIST_W, CV_8UC3, cv::Scalar(0, 0, 0));
+  cv::normalize(hist, hist, 0, histImage.rows, cv::NORM_MINMAX, -1, cv::Mat());
+  for (int i = 1; i < HIST_SIZE; i++)
+  {
+    line(histImage, cv::Point(bin_w * i, HIST_H),
+      cv::Point(bin_w * i, HIST_H - cvRound(hist.at<float>(i))),
+      iColor, 1, 8, 0);
+  }
+
+  cv::imshow(iWindowName, histImage);
 }
 
 int main(int argc, char** argv)
 {
-  const auto image = cv::imread(INPUT_PATH, cv::IMREAD_GRAYSCALE);
+  cv::Mat image = cv::imread(INPUT_PATH, cv::IMREAD_GRAYSCALE);
+  cv::Mat equalizedImage;
 
-  int c = 7;
-  int blockSize = 20;
+  cv::equalizeHist(image, equalizedImage);
+  
+  cv::imshow(WINDOW_SOURCE_NAME, image);
+  cv::imshow(WINDOW_OUTPUT_NAME, equalizedImage);
 
-  cv::namedWindow(WINDOW_NAME, cv::WINDOW_NORMAL);
+  printHist(image, cv::Scalar(255, 0, 0), WINDOW_SOURCE_HIST_NAME);
+  printHist(equalizedImage, cv::Scalar(0, 0, 255), WINDOW_OUTPUT_HIST_NAME);
 
-  cv::createTrackbar("C", WINDOW_NAME, &c, 50, onTrackbar);
-  cv::createTrackbar("Block Size", WINDOW_NAME, &blockSize, 50, onTrackbar);
+  cv::waitKey();
 
-  cv::Mat destImage;
-
-  while (cv::waitKey(30) != 'q') {
-    cv::adaptiveThreshold(image, destImage, 255, cv::ADAPTIVE_THRESH_GAUSSIAN_C, cv::THRESH_BINARY, blockSize * 2 + 3 /*43*/, c /*5*/);
-    cv::imshow("Adaptive Threshold", destImage);
-  }
-
-  cv::destroyAllWindows();
-  cv::imwrite(OUTPUT_PATH, destImage);
-
-  return 0;
+  return EXIT_SUCCESS;
 }
