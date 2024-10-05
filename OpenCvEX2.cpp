@@ -33,12 +33,12 @@ std::vector<cv::Mat> getNoise(const cv::Mat& iImage)
 
   std::random_device dev;
   std::mt19937 rng(dev());
-  std::uniform_int_distribution<> dist(0, 512);
+  std::uniform_int_distribution<> dist(0, 511);
 
   for (int row = 0; row < rows; ++row) {
     for (int col = 0; col < cols; ++col) {
       for (int i = 0; i < noiseImages.size(); ++i) {
-        noiseImages[i].at<uchar>(row, col) = cv::saturate_cast<uchar>(iImage.at<uchar>(row, col) + (dist(rng) - 255) * NOISE_POWER);
+        noiseImages[i].at<uchar>(row, col) = cv::saturate_cast<uchar>(iImage.at<uchar>(row, col) + (dist(rng) - 256) * NOISE_POWER);
       }
     }
   }
