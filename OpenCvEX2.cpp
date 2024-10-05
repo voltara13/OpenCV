@@ -1,49 +1,91 @@
 ﻿#include <opencv2/opencv.hpp>
 #include <vector>
+#include <random>
+#include <iostream>
 
-const char* INPUT_PATH = "../../../input.jpg";
+const char* INPUT_PATH = "../../../input.png";
 const char* WINDOW_SOURCE_NAME = "Source image";
+const char* WINDOW_NOISE_NAME = "Noise image";
 const char* WINDOW_OUTPUT_NAME = "Output image";
-const char* WINDOW_SOURCE_HIST_NAME = "Hist source";
-const char* WINDOW_OUTPUT_HIST_NAME = "Hist output";
 
-constexpr int HIST_SIZE = 256;
-constexpr int HIST_W = 512;
-constexpr int HIST_H = 400;
+constexpr int NOISE_COUNT = 3;
+constexpr double NOISE_POWER = 0.1;
 
-constexpr float RANGE[] = { 0, HIST_SIZE };
-
-void printHist(const cv::Mat& iImage, const cv::Scalar& iColor, const cv::String& iWindowName)
+uchar findAvg(const std::vector<uchar>& arr) 
 {
-  const float* histRange[] = { RANGE };
+  auto sum = 0;
 
-  cv::Mat hist;
-  calcHist(&iImage, 1, 0, cv::Mat(), hist, 1, &HIST_SIZE, histRange, true, false);
-  int bin_w = cvRound((double)HIST_W / HIST_SIZE);
-  cv::Mat histImage(HIST_H, HIST_W, CV_8UC3, cv::Scalar(0, 0, 0));
-  cv::normalize(hist, hist, 0, histImage.rows, cv::NORM_MINMAX, -1, cv::Mat());
-  for (int i = 1; i < HIST_SIZE; i++)
-  {
-    line(histImage, cv::Point(bin_w * i, HIST_H),
-      cv::Point(bin_w * i, HIST_H - cvRound(hist.at<float>(i))),
-      iColor, 1, 8, 0);
+  for (const auto& value : arr)
+    sum += value;
+
+  return cv::saturate_cast<uchar>(sum / arr.size());
+}
+
+std::vector<cv::Mat> getNoise(const cv::Mat& iImage)
+{
+  std::vector<cv::Mat> noiseImages;
+
+  const auto rows = iImage.rows;
+  const auto cols = iImage.cols;
+
+  for (int i = 0; i < NOISE_COUNT; ++i)
+    noiseImages.emplace_back(iImage.size(), iImage.type());
+
+  std::random_device dev;
+  std::mt19937 rng(dev());
+  std::uniform_int_distribution<> dist(0, 512);
+
+  for (int row = 0; row < rows; ++row) {
+    for (int col = 0; col < cols; ++col) {
+      for (int i = 0; i < noiseImages.size(); ++i) {
+        noiseImages[i].at<uchar>(row, col) = cv::saturate_cast<uchar>(iImage.at<uchar>(row, col) + (dist(rng) - 255) * NOISE_POWER);
+      }
+    }
   }
 
-  cv::imshow(iWindowName, histImage);
+  return noiseImages;
+}
+
+cv::Mat replaceImage(const std::vector<cv::Mat>& iNoises)
+{
+  if (iNoises.empty())
+    return {};
+
+  const auto rows = iNoises[0].rows;
+  const auto cols = iNoises[0].cols;
+
+  cv::Mat replaced(rows, cols, CV_8UC1, cv::Scalar(0));
+
+  for (int row = 0; row < rows; ++row) {
+    for (int col = 0; col < cols; ++col) {
+      std::vector<uchar> pixelsVariant(iNoises.size());
+
+      for (int i = 0; i < iNoises.size(); ++i)
+        pixelsVariant[i] = iNoises[i].at<uchar>(row, col);
+
+      replaced.at<uchar>(row, col) = findAvg(pixelsVariant);
+    }
+  }
+
+  return replaced;
 }
 
 int main(int argc, char** argv)
 {
-  cv::Mat image = cv::imread(INPUT_PATH, cv::IMREAD_GRAYSCALE);
-  cv::Mat equalizedImage;
-
-  cv::equalizeHist(image, equalizedImage);
+  auto image = cv::imread(INPUT_PATH, cv::IMREAD_GRAYSCALE);
+  auto noiseImages = getNoise(image);
   
   cv::imshow(WINDOW_SOURCE_NAME, image);
-  cv::imshow(WINDOW_OUTPUT_NAME, equalizedImage);
+ 
+  for (int i = 0; i < noiseImages.size(); ++i) {
+    auto name = cv::String(WINDOW_NOISE_NAME);
+    name += "_" + std::to_string(i);
 
-  printHist(image, cv::Scalar(255, 0, 0), WINDOW_SOURCE_HIST_NAME);
-  printHist(equalizedImage, cv::Scalar(0, 0, 255), WINDOW_OUTPUT_HIST_NAME);
+    cv::imshow(name, noiseImages[i]);
+  }
+
+  const auto replacedImage = replaceImage(noiseImages);
+  cv::imshow(WINDOW_OUTPUT_NAME, replacedImage);
 
   cv::waitKey();
 
